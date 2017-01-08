@@ -81,10 +81,11 @@ func (c compact) String() string {
 }
 
 type global struct {
-	fileID     int
-	gtagsData  []standard
-	grtagsData map[string]*compact
-	db         map[tagType]*sql.DB
+	fileID      int
+	gtagsData   []standard
+	grtagsData  map[string]*compact
+	db          map[tagType]*sql.DB
+	transaction map[tagType]*sql.Tx
 	// lineImageScanner
 	basePath    string
 	currentFile *os.File
@@ -99,6 +100,7 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		gtagsData:   make([]standard, 0),
 		grtagsData:  make(map[string]*compact),
 		db:          make(map[tagType]*sql.DB),
+		transaction: make(map[tagType]*sql.Tx),
 		basePath:    basePath,
 		currentFile: nil,
 		currentLine: 0,
@@ -123,6 +125,10 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		if err != nil {
 			return nil, err
 		}
+		g.transaction[file], err = g.db[file].Begin()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	g.insertEntry(GTAGS, " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
@@ -141,7 +147,7 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 }
 
 func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
-	_, err := g.db[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
+	_, err := g.transaction[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
 	if err != nil {
 		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
 		panic("failed to exec")
@@ -177,6 +183,18 @@ func (g *global) finalize() error {
 		}
 	}
 	g.dump()
+
+	dbfiles := []tagType{
+		GTAGS,
+		GRTAGS,
+		GPATH,
+	}
+
+	for _, file := range dbfiles {
+		g.transaction[file].Commit()
+		g.db[file].Close()
+	}
+
 	return nil
 }
 

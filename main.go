@@ -17,6 +17,26 @@ import (
 	"github.com/pkg/errors"
 )
 
+type tagType int
+
+const (
+	GTAGS tagType = iota
+	GRTAGS
+	GPATH
+)
+
+func (t tagType) String() string {
+	switch t {
+	case GTAGS:
+		return "GTAGS"
+	case GRTAGS:
+		return "GRTAGS"
+	case GPATH:
+		return "GPATH"
+	}
+	panic("invalid tagType")
+}
+
 type standard struct {
 	tagName    string
 	fileID     int
@@ -64,7 +84,7 @@ type global struct {
 	fileID     int
 	gtagsData  []standard
 	grtagsData map[string]*compact
-	db         map[string]*sql.DB
+	db         map[tagType]*sql.DB
 	// lineImageScanner
 	basePath       string
 	currentFile    *os.File
@@ -79,7 +99,7 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		fileID:      0,
 		gtagsData:   make([]standard, 0),
 		grtagsData:  make(map[string]*compact),
-		db:          make(map[string]*sql.DB),
+		db:          make(map[tagType]*sql.DB),
 		basePath:    basePath,
 		currentFile: nil,
 		currentLine: 0,
@@ -87,81 +107,72 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		fset:        fset,
 	}
 
-	dbfiles := []string{
-		"GTAGS",
-		"GRTAGS",
-		"GPATH",
+	dbfiles := []tagType{
+		GTAGS,
+		GRTAGS,
+		GPATH,
 	}
 
+	var err error
 	for _, file := range dbfiles {
-		var err error
-		os.Remove("./" + file)
-		g.db[file], err = sql.Open("sqlite3", file)
+		os.Remove("./" + file.String())
+		g.db[file], err = sql.Open("sqlite3", file.String())
 		if err != nil {
 			return nil, err
 		}
-		_, err = g.db[file].Exec(`create table db (key text primary key, dat text, extra text)`)
+		_, err = g.db[file].Exec(`create table db (key text, dat text, extra text)`)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	stmt, err := g.db["GTAGS"].Prepare(`insert into db (key, dat) values (?, ?)`)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Exec(" __.COMPRESS", " __.COMPRESS ddefine ttypedef")
-	stmt.Exec(" __.COMPNAME", " __.COMPNAME")
-	stmt.Exec(" __.VERSION", " __.VERSION 6")
+	g.insertEntry(GTAGS, " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
+	g.insertEntry(GTAGS, " __.COMPNAME", " __.COMPNAME", nil)
+	g.insertEntry(GTAGS, " __.VERSION", " __.VERSION 6", nil)
 
-	stmt, err = g.db["GRTAGS"].Prepare(`insert into db (key, dat) values (?, ?)`)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Exec(" __.COMPACT", " __.COMPACT")
-	stmt.Exec(" __.COMPLINE", " __.COMPLINE")
-	stmt.Exec(" __.COMPNAME", " __.COMPNAME")
-	stmt.Exec(" __.VERSION", " __.VERSION 6")
+	g.insertEntry(GRTAGS, " __.COMPACT", " __.COMPACT", nil)
+	g.insertEntry(GRTAGS, " __.COMPLINE", " __.COMPLINE", nil)
+	g.insertEntry(GRTAGS, " __.COMPNAME", " __.COMPNAME", nil)
+	g.insertEntry(GRTAGS, " __.VERSION", " __.VERSION 6", nil)
 
-	stmt, err = g.db["GPATH"].Prepare(`insert into db (key, dat) values (?, ?)`)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Exec(" __.VERSION", " __.VERSION 2")
-	stmt.Exec(" __.NEXTKEY", "1")
+	g.insertEntry(GPATH, " __.VERSION", " __.VERSION 2", nil)
+	g.insertEntry(GPATH, " __.NEXTKEY", "1", nil)
 
 	return g, nil
+}
+
+func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
+	stmt, err := g.db[tag].Prepare(`insert into db (key, dat, extra) values (?, ?, ?)`)
+	if err != nil {
+		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
+		panic("failed to prepare")
+	}
+	_, err = stmt.Exec(key, dat, extra)
+	if err != nil {
+		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
+		panic("failed to exec")
+	}
 }
 
 func (g *global) dump() {
 	if g.fileID == 0 {
 		return
 	}
-	stmt, err := g.db["GTAGS"].Prepare(`insert into db (key, dat, extra) values (?, ?, ?)`)
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	for _, s := range g.gtagsData {
-		stmt.Exec(s.tagName, s.String(), strconv.Itoa(s.fileID))
-	}
-	stmt, err = g.db["GRTAGS"].Prepare(`insert into db (key, dat, extra) values (?, ?, ?)`)
-	if err != nil {
-		log.Fatal(err)
+		g.insertEntry(GTAGS, s.tagName, s.String(), strconv.Itoa(s.fileID))
 	}
 	for tagName, compact := range g.grtagsData {
-		stmt.Exec(tagName, compact.String(), strconv.Itoa(compact.fileID))
-	}
-	stmt, err = g.db["GPATH"].Prepare(`insert into db (key, dat) values (?, ?)`)
-	if err != nil {
-		log.Fatal(err)
+		g.insertEntry(GRTAGS, tagName, compact.String(), strconv.Itoa(compact.fileID))
 	}
 
 	filepath, _ := filepath.Rel(g.basePath, g.currentFile.Name())
 	filepath = "./" + filepath
 	log.Println(filepath)
-	stmt.Exec(filepath, g.fileID)
-	stmt.Exec(g.fileID, filepath)
-	stmt.Exec(" __.NEXTKEY", strconv.Itoa(g.fileID+1))
+
+	g.insertEntry(GPATH, filepath, g.fileID, nil)
+	g.insertEntry(GPATH, g.fileID, filepath, nil)
+	g.insertEntry(GPATH, " __.NEXTKEY", strconv.Itoa(g.fileID+1), nil)
 }
 
 func (g *global) finalize() error {

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"database/sql"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -149,8 +150,7 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
 	_, err := g.transaction[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
 	if err != nil {
-		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
-		panic("failed to exec")
+		log.Panicln("failed to exec", err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
 	}
 }
 
@@ -168,7 +168,9 @@ func (g *global) dump() {
 
 	filepath, _ := filepath.Rel(g.basePath, g.currentFile.Name())
 	filepath = "./" + filepath
-	log.Println(filepath)
+	if *verbose {
+		log.Println(filepath)
+	}
 
 	g.insertEntry(GPATH, filepath, g.fileID, nil)
 	g.insertEntry(GPATH, g.fileID, filepath, nil)
@@ -280,7 +282,12 @@ func (g *global) parse(node ast.Node) bool {
 	return true
 }
 
+var verbose *bool
+
 func main() {
+	verbose = flag.Bool("v", false, "Verbose mode.")
+	flag.Parse()
+
 	basePath, err := filepath.Abs(".")
 	if err != nil {
 		log.Fatal("failed to get absolute path: ", err)

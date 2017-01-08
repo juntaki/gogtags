@@ -86,12 +86,11 @@ type global struct {
 	grtagsData map[string]*compact
 	db         map[tagType]*sql.DB
 	// lineImageScanner
-	basePath       string
-	currentFile    *os.File
-	currentRelPath string
-	currentLine    int
-	scanner        *bufio.Scanner
-	fset           *token.FileSet
+	basePath    string
+	currentFile *os.File
+	currentLine int
+	scanner     *bufio.Scanner
+	fset        *token.FileSet
 }
 
 func newGlobal(fset *token.FileSet, basePath string) (*global, error) {

@@ -66,6 +66,7 @@ type global struct {
 	grtagsData map[string]*compact
 	db         map[string]*sql.DB
 	// lineImageScanner
+	basePath       string
 	currentFile    *os.File
 	currentRelPath string
 	currentLine    int
@@ -73,21 +74,17 @@ type global struct {
 	fset           *token.FileSet
 }
 
-func (g *global) setRel(path string) {
-	g.currentRelPath = path
-}
-
-func newGlobal(fset *token.FileSet) (*global, error) {
+func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 	g := &global{
-		fileID:         0,
-		gtagsData:      make([]standard, 0),
-		grtagsData:     make(map[string]*compact),
-		db:             make(map[string]*sql.DB),
-		currentFile:    nil,
-		currentRelPath: "",
-		currentLine:    0,
-		scanner:        nil,
-		fset:           fset,
+		fileID:      0,
+		gtagsData:   make([]standard, 0),
+		grtagsData:  make(map[string]*compact),
+		db:          make(map[string]*sql.DB),
+		basePath:    basePath,
+		currentFile: nil,
+		currentLine: 0,
+		scanner:     nil,
+		fset:        fset,
 	}
 
 	dbfiles := []string{
@@ -158,15 +155,13 @@ func (g *global) dump() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	currentpath, _ := filepath.Abs(g.currentRelPath)
-	filepath, _ := filepath.Rel(currentpath, g.currentFile.Name())
-	if g.currentRelPath == "." {
-		stmt.Exec(g.currentRelPath+"/"+filepath, g.fileID)
-		stmt.Exec(g.fileID, g.currentRelPath+"/"+filepath)
-	} else {
-		stmt.Exec("./"+g.currentRelPath+"/"+filepath, g.fileID)
-		stmt.Exec(g.fileID, "./"+g.currentRelPath+"/"+filepath)
-	}
+
+	filepath, _ := filepath.Rel(g.basePath, g.currentFile.Name())
+	filepath = "./" + filepath
+	log.Println(filepath)
+	stmt.Exec(filepath, g.fileID)
+	stmt.Exec(g.fileID, filepath)
+	stmt.Exec(" __.NEXTKEY", strconv.Itoa(g.fileID+1))
 }
 
 func (g *global) finalize() error {
@@ -263,19 +258,23 @@ func (g *global) parse(node ast.Node) bool {
 }
 
 func main() {
+	basePath, err := filepath.Abs(".")
+	if err != nil {
+		log.Fatal("failed to get absolute path: ", err)
+	}
+
 	fset := token.NewFileSet() // positions are relative to fset
-	g, err := newGlobal(fset)
+	g, err := newGlobal(fset, basePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			pkgs, err := parser.ParseDir(fset, path, nil, 0)
 			if err != nil {
 				log.Fatal(err)
 			}
-			g.setRel(path)
 			for _, p := range pkgs {
 				ast.Inspect(p, g.parse)
 			}

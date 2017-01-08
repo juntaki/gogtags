@@ -142,12 +142,7 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 }
 
 func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
-	stmt, err := g.db[tag].Prepare(`insert into db (key, dat, extra) values (?, ?, ?)`)
-	if err != nil {
-		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
-		panic("failed to prepare")
-	}
-	_, err = stmt.Exec(key, dat, extra)
+	_, err := g.db[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
 	if err != nil {
 		log.Println(err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
 		panic("failed to exec")

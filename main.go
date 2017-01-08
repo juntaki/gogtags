@@ -66,22 +66,28 @@ type global struct {
 	grtagsData map[string]*compact
 	db         map[string]*sql.DB
 	// lineImageScanner
-	currentFile *os.File
-	currentLine int
-	scanner     *bufio.Scanner
-	fset        *token.FileSet
+	currentFile    *os.File
+	currentRelPath string
+	currentLine    int
+	scanner        *bufio.Scanner
+	fset           *token.FileSet
+}
+
+func (g *global) setRel(path string) {
+	g.currentRelPath = path
 }
 
 func newGlobal(fset *token.FileSet) (*global, error) {
 	g := &global{
-		fileID:      0,
-		gtagsData:   make([]standard, 0),
-		grtagsData:  make(map[string]*compact),
-		db:          make(map[string]*sql.DB),
-		currentFile: nil,
-		currentLine: 0,
-		scanner:     nil,
-		fset:        fset,
+		fileID:         0,
+		gtagsData:      make([]standard, 0),
+		grtagsData:     make(map[string]*compact),
+		db:             make(map[string]*sql.DB),
+		currentFile:    nil,
+		currentRelPath: "",
+		currentLine:    0,
+		scanner:        nil,
+		fset:           fset,
 	}
 
 	dbfiles := []string{
@@ -152,10 +158,15 @@ func (g *global) dump() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	currentpath, _ := filepath.Abs(".")
+	currentpath, _ := filepath.Abs(g.currentRelPath)
 	filepath, _ := filepath.Rel(currentpath, g.currentFile.Name())
-	stmt.Exec("./"+filepath, g.fileID)
-	stmt.Exec(g.fileID, "./"+filepath)
+	if g.currentRelPath == "." {
+		stmt.Exec(g.currentRelPath+"/"+filepath, g.fileID)
+		stmt.Exec(g.fileID, g.currentRelPath+"/"+filepath)
+	} else {
+		stmt.Exec("./"+g.currentRelPath+"/"+filepath, g.fileID)
+		stmt.Exec(g.fileID, "./"+g.currentRelPath+"/"+filepath)
+	}
 }
 
 func (g *global) finalize() error {
@@ -253,19 +264,28 @@ func (g *global) parse(node ast.Node) bool {
 
 func main() {
 	fset := token.NewFileSet() // positions are relative to fset
-
-	pkgs, err := parser.ParseDir(fset, ".", nil, 0)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	g, err := newGlobal(fset)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, p := range pkgs {
-		ast.Inspect(p, g.parse)
+
+	err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			pkgs, err := parser.ParseDir(fset, path, nil, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			g.setRel(path)
+			for _, p := range pkgs {
+				ast.Inspect(p, g.parse)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
+
 	err = g.finalize()
 	if err != nil {
 		log.Fatal(err)

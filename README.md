@@ -11,6 +11,15 @@ GNU GLOBAL compatible source code tagging for golang
 go get github.com/juntaki/gogtags
 ~~~
 
+GNU GLOBAL with sqlite3 is required for reference.
+https://www.gnu.org/software/global/
+
+~~~
+./configure --with-sqlite3
+make
+sudo make install
+~~~
+
 ## How to use
 
 ~~~

@@ -11,7 +11,9 @@ GNU GLOBAL compatible source code tagging for golang
 go get github.com/juntaki/gogtags
 ~~~
 
-GNU GLOBAL with sqlite3 is required for reference.
+## GNU GLOBAL Installation for gogtags
+
+GNU GLOBAL **with sqlite3** is required for reference.
 https://www.gnu.org/software/global/
 
 ### Debian/Ubuntu

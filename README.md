@@ -1,7 +1,6 @@
 # gogtags
 
 [![Build Status](https://travis-ci.org/juntaki/gogtags.svg?branch=master)](https://travis-ci.org/juntaki/gogtags)
-[![Coverage Status](https://coveralls.io/repos/github/juntaki/gogtags/badge.svg?branch=master)](https://coveralls.io/github/juntaki/gogtags?branch=master)
 
 GNU GLOBAL compatible source code tagging for golang
 

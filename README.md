@@ -29,7 +29,7 @@ sudo make install
 ### Mac
 
 ~~~
-brew install global -with-sqlite3
+brew install global --with-sqlite3
 ~~~
 
 ## How to use

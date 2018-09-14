@@ -265,11 +265,15 @@ func (g *global) parse(node ast.Node) bool {
 		log.Fatal("failed to get absolute path: ", err)
 	}
 	if g.currentFile == nil || g.currentFile.Name() != absPath {
-		g.dump()
+		// only add data into gtags file if currentFile is not nil
+		if g.currentFile != nil {
+			g.dump()
+		}
 
 		err = g.switchFile(absPath)
 		if err != nil {
-			log.Fatal("failed to switch file: ", err)
+			log.Print("failed to switch file: ", err)
+			return false
 		}
 	}
 
@@ -300,10 +304,21 @@ func main() {
 	}
 
 	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		// Skip files if hidden
+		if !info.IsDir() && info.Name()[0] == '.' {
+			fmt.Println("Hidden file, skipping: ", path)
+			return nil
+		}
 		if info.IsDir() {
+			// if hidden directory - skip the entire dir
+			if info.Name()[0] == '.' {
+				fmt.Println("Hidden folder, skipping: ", path)
+				return filepath.SkipDir
+			}
 			pkgs, err := parser.ParseDir(fset, path, nil, 0)
 			if err != nil {
-				log.Fatal(err)
+				log.Println("Error in parsing directory, skipping: ", path, err)
+				return nil
 			}
 			for _, p := range pkgs {
 				ast.Inspect(p, g.parse)

@@ -79,9 +79,7 @@ func (c compact) String() string {
 }
 
 type global struct {
-	fileID      int
-	gtagsData   []standard
-	grtagsData  map[string]*compact
+	fileDatas   []*fileData
 	db          map[tagType]*sql.DB
 	transaction map[tagType]*sql.Tx
 	// lineImageScanner
@@ -92,11 +90,34 @@ type global struct {
 	fset        *token.FileSet
 }
 
-func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
-	g := &global{
-		fileID:      0,
+func (g *global) appendFileData(path string) {
+	new := &fileData{
+		fileID:      len(g.fileDatas) + 1,
+		absFilePath: path,
 		gtagsData:   make([]standard, 0),
 		grtagsData:  make(map[string]*compact),
+	}
+
+	g.fileDatas = append(g.fileDatas, new)
+}
+
+func (g *global) latestFileData() *fileData {
+	if len(g.fileDatas) == 0 {
+		return nil
+	}
+	return g.fileDatas[len(g.fileDatas)-1]
+}
+
+type fileData struct {
+	fileID      int
+	absFilePath string
+	gtagsData   []standard
+	grtagsData  map[string]*compact
+}
+
+func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
+	g := &global{
+		fileDatas:   []*fileData{},
 		db:          make(map[tagType]*sql.DB),
 		transaction: make(map[tagType]*sql.Tx),
 		basePath:    basePath,
@@ -104,6 +125,24 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		currentLine: 0,
 		scanner:     nil,
 		fset:        fset,
+	}
+
+	return g, nil
+}
+
+func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
+	_, err := g.transaction[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
+	if err != nil {
+		log.Panicln("failed to exec", err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
+	}
+}
+
+func (g *global) finalize() error {
+	if g.currentFile != nil {
+		err := g.currentFile.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	dbfiles := []tagType{
@@ -117,15 +156,15 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 		os.Remove("./" + file.String())
 		g.db[file], err = sql.Open("sqlite3", file.String())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		_, err = g.db[file].Exec(`create table db (key text, dat text, extra text)`)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		g.transaction[file], err = g.db[file].Begin()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -141,52 +180,23 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 	g.insertEntry(GPATH, " __.VERSION", " __.VERSION 2", nil)
 	g.insertEntry(GPATH, " __.NEXTKEY", "1", nil)
 
-	return g, nil
-}
-
-func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
-	_, err := g.transaction[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
-	if err != nil {
-		log.Panicln("failed to exec", err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
-	}
-}
-
-func (g *global) dump() {
-	if g.fileID == 0 {
-		return
-	}
-
-	for _, s := range g.gtagsData {
-		g.insertEntry(GTAGS, s.tagName, s.String(), strconv.Itoa(s.fileID))
-	}
-	for tagName, compact := range g.grtagsData {
-		g.insertEntry(GRTAGS, tagName, compact.String(), strconv.Itoa(compact.fileID))
-	}
-
-	filepath, _ := filepath.Rel(g.basePath, g.currentFile.Name())
-	filepath = "./" + filepath
-	if verbose {
-		log.Println(filepath)
-	}
-
-	g.insertEntry(GPATH, filepath, g.fileID, nil)
-	g.insertEntry(GPATH, g.fileID, filepath, nil)
-	g.insertEntry(GPATH, " __.NEXTKEY", strconv.Itoa(g.fileID+1), nil)
-}
-
-func (g *global) finalize() error {
-	if g.currentFile != nil {
-		err := g.currentFile.Close()
-		if err != nil {
-			return err
+	for _, fd := range g.fileDatas {
+		for _, s := range fd.gtagsData {
+			g.insertEntry(GTAGS, s.tagName, s.String(), strconv.Itoa(s.fileID))
 		}
-	}
-	g.dump()
+		for tagName, compact := range fd.grtagsData {
+			g.insertEntry(GRTAGS, tagName, compact.String(), strconv.Itoa(compact.fileID))
+		}
 
-	dbfiles := []tagType{
-		GTAGS,
-		GRTAGS,
-		GPATH,
+		filepath, _ := filepath.Rel(g.basePath, fd.absFilePath)
+		filepath = "./" + filepath
+		if verbose {
+			log.Println(filepath)
+		}
+
+		g.insertEntry(GPATH, filepath, fd.fileID, nil)
+		g.insertEntry(GPATH, fd.fileID, filepath, nil)
+		g.insertEntry(GPATH, " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
 	}
 
 	for _, file := range dbfiles {
@@ -213,9 +223,7 @@ func (g *global) switchFile(abspath string) (err error) {
 	g.currentLine = 0
 
 	// Reset parsed data
-	g.gtagsData = make([]standard, 0)
-	g.grtagsData = make(map[string]*compact)
-	g.fileID++
+	g.appendFileData(abspath)
 
 	return nil
 }
@@ -228,9 +236,9 @@ func (g *global) addFuncDecl(node *ast.FuncDecl) {
 	}
 	lineImage := strings.Replace(strings.TrimSpace(g.scanner.Text()), ident.Name, "@n", -1)
 
-	g.gtagsData = append(g.gtagsData, standard{
+	g.latestFileData().gtagsData = append(g.latestFileData().gtagsData, standard{
 		tagName:    ident.Name,
-		fileID:     g.fileID,
+		fileID:     g.latestFileData().fileID,
 		lineNumber: pos.Line,
 		lineImage:  lineImage,
 	})
@@ -238,12 +246,12 @@ func (g *global) addFuncDecl(node *ast.FuncDecl) {
 
 func (g *global) addIdent(ident *ast.Ident) {
 	pos := g.fset.Position(ident.Pos())
-	r, found := g.grtagsData[ident.Name]
+	r, found := g.latestFileData().grtagsData[ident.Name]
 	if found {
 		r.lineNumbers = append(r.lineNumbers, pos.Line)
 	} else {
-		g.grtagsData[ident.Name] = &compact{
-			fileID:      g.fileID,
+		g.latestFileData().grtagsData[ident.Name] = &compact{
+			fileID:      g.latestFileData().fileID,
 			lineNumbers: []int{pos.Line},
 		}
 	}
@@ -262,11 +270,6 @@ func (g *global) parse(node ast.Node) bool {
 		log.Fatal("failed to get absolute path: ", err)
 	}
 	if g.currentFile == nil || g.currentFile.Name() != absPath {
-		// only add data into gtags file if currentFile is not nil
-		if g.currentFile != nil {
-			g.dump()
-		}
-
 		err = g.switchFile(absPath)
 		if err != nil {
 			log.Print("failed to switch file: ", err)

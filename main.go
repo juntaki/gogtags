@@ -294,9 +294,21 @@ func main() {
 
 	basePath, err := filepath.Abs(".")
 	if err != nil {
-		log.Fatal("failed to get absolute path: ", err)
+		log.Fatalf("failed to get absolute path: %s", err)
 	}
 
+	g, err := do(basePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = g.finalize()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func do(basePath string) (*global, error) {
 	fset := token.NewFileSet() // positions are relative to fset
 	g, err := newGlobal(fset, basePath)
 	if err != nil {
@@ -326,12 +338,5 @@ func main() {
 		}
 		return nil
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = g.finalize()
-	if err != nil {
-		log.Fatal(err)
-	}
+	return g, err
 }

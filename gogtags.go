@@ -79,9 +79,7 @@ func (c compact) String() string {
 }
 
 type global struct {
-	fileDatas   []*fileData
-	db          map[tagType]*sql.DB
-	transaction map[tagType]*sql.Tx
+	fileDatas []*fileData
 	// lineImageScanner
 	basePath    string
 	currentFile *os.File

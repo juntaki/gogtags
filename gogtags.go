@@ -165,7 +165,7 @@ func (g *global) dump() {
 
 	filepath, _ := filepath.Rel(g.basePath, g.currentFile.Name())
 	filepath = "./" + filepath
-	if *verbose {
+	if verbose {
 		log.Println(filepath)
 	}
 

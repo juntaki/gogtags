@@ -13,11 +13,16 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var verbose *bool
+var verbose bool
+var debug bool
 
 func main() {
-	verbose = flag.Bool("v", false, "Verbose mode.")
+	verbose = *flag.Bool("v", false, "Verbose mode.")
+	debug = *flag.Bool("d", false, "Debug mode.")
 	flag.Parse()
+	if debug {
+		verbose = true
+	}
 
 	basePath, err := filepath.Abs(".")
 	if err != nil {
@@ -40,18 +45,24 @@ func do(basePath string) error {
 	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		// Skip files if hidden
 		if !info.IsDir() && info.Name()[0] == '.' {
-			fmt.Println("Hidden file, skipping: ", path)
+			if verbose {
+				fmt.Println("Hidden file, skipping: ", path)
+			}
 			return nil
 		}
 		if info.IsDir() {
 			// if hidden directory - skip the entire dir
 			if info.Name()[0] == '.' {
-				fmt.Println("Hidden folder, skipping: ", path)
+				if verbose {
+					fmt.Println("Hidden folder, skipping: ", path)
+				}
 				return filepath.SkipDir
 			}
 			pkgs, err := parser.ParseDir(fset, path, nil, 0)
 			if err != nil {
-				log.Println("Error in parsing directory, skipping: ", path, err)
+				if verbose {
+					log.Println("Error in parsing directory, skipping: ", path, err)
+				}
 				return nil
 			}
 			for _, p := range pkgs {

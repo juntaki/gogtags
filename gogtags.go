@@ -204,7 +204,17 @@ func (g *global) finalize() error {
 	return nil
 }
 
-func (g *global) switchFile(abspath string) (err error) {
+func (g *global) switchFile(node ast.Node) (err error) {
+	pos := g.fset.Position(node.Pos())
+	abspath, err := filepath.Abs(pos.Filename)
+	if err != nil {
+		log.Fatal("failed to get absolute path: ", err)
+	}
+
+	if g.currentFile != nil && g.currentFile.Name() == abspath {
+		return nil
+	}
+
 	// Close and Setup Scanner
 	if g.currentFile != nil {
 		err := g.currentFile.Close()
@@ -261,17 +271,11 @@ func (g *global) parse(node ast.Node) bool {
 	if _, ok := node.(*ast.Package); ok {
 		return true
 	}
-	pos := g.fset.Position(node.Pos())
-	absPath, err := filepath.Abs(pos.Filename)
+
+	err := g.switchFile(node)
 	if err != nil {
-		log.Fatal("failed to get absolute path: ", err)
-	}
-	if g.currentFile == nil || g.currentFile.Name() != absPath {
-		err = g.switchFile(absPath)
-		if err != nil {
-			log.Print("failed to switch file: ", err)
-			return false
-		}
+		log.Print("failed to switch file: ", err)
+		return false
 	}
 
 	switch node.(type) {

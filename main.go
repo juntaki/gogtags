@@ -43,13 +43,6 @@ func do(basePath string) error {
 	}
 
 	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
-		// Skip files if hidden
-		if !info.IsDir() && info.Name()[0] == '.' {
-			if verbose {
-				fmt.Println("Hidden file, skipping: ", path)
-			}
-			return nil
-		}
 		if info.IsDir() {
 			// if hidden directory - skip the entire dir
 			if info.Name()[0] == '.' {
@@ -60,9 +53,7 @@ func do(basePath string) error {
 			}
 			pkgs, err := parser.ParseDir(fset, path, nil, 0)
 			if err != nil {
-				if verbose {
-					log.Println("Error in parsing directory, skipping: ", path, err)
-				}
+				log.Println("Error in parsing directory, skipping: ", path, err)
 				return nil
 			}
 			for _, p := range pkgs {

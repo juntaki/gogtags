@@ -118,8 +118,6 @@ type fileData struct {
 func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 	g := &global{
 		fileDatas:   []*fileData{},
-		db:          make(map[tagType]*sql.DB),
-		transaction: make(map[tagType]*sql.Tx),
 		basePath:    basePath,
 		currentFile: nil,
 		currentLine: 0,
@@ -130,10 +128,10 @@ func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 	return g, nil
 }
 
-func (g *global) insertEntry(tag tagType, key, dat, extra interface{}) {
-	_, err := g.transaction[tag].Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
+func insertEntry(tx *sql.Tx, key, dat, extra interface{}) {
+	_, err := tx.Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, key, dat, extra)
 	if err != nil {
-		log.Panicln("failed to exec", err, "tag:", tag, "|key:", key, "|dat:", dat, "|extra:", extra)
+		log.Panicln("failed to exec", err, "|key:", key, "|dat:", dat, "|extra:", extra)
 	}
 }
 
@@ -150,42 +148,43 @@ func (g *global) finalize() error {
 		GRTAGS,
 		GPATH,
 	}
-
+	db := make(map[tagType]*sql.DB)
+	transaction := make(map[tagType]*sql.Tx)
 	var err error
 	for _, file := range dbfiles {
 		os.Remove("./" + file.String())
-		g.db[file], err = sql.Open("sqlite3", file.String())
+		db[file], err = sql.Open("sqlite3", file.String())
 		if err != nil {
 			return err
 		}
-		_, err = g.db[file].Exec(`create table db (key text, dat text, extra text)`)
+		_, err = db[file].Exec(`create table db (key text, dat text, extra text)`)
 		if err != nil {
 			return err
 		}
-		g.transaction[file], err = g.db[file].Begin()
+		transaction[file], err = db[file].Begin()
 		if err != nil {
 			return err
 		}
 	}
 
-	g.insertEntry(GTAGS, " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
-	g.insertEntry(GTAGS, " __.COMPNAME", " __.COMPNAME", nil)
-	g.insertEntry(GTAGS, " __.VERSION", " __.VERSION 6", nil)
+	insertEntry(transaction[GTAGS], " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
+	insertEntry(transaction[GTAGS], " __.COMPNAME", " __.COMPNAME", nil)
+	insertEntry(transaction[GTAGS], " __.VERSION", " __.VERSION 6", nil)
 
-	g.insertEntry(GRTAGS, " __.COMPACT", " __.COMPACT", nil)
-	g.insertEntry(GRTAGS, " __.COMPLINE", " __.COMPLINE", nil)
-	g.insertEntry(GRTAGS, " __.COMPNAME", " __.COMPNAME", nil)
-	g.insertEntry(GRTAGS, " __.VERSION", " __.VERSION 6", nil)
+	insertEntry(transaction[GRTAGS], " __.COMPACT", " __.COMPACT", nil)
+	insertEntry(transaction[GRTAGS], " __.COMPLINE", " __.COMPLINE", nil)
+	insertEntry(transaction[GRTAGS], " __.COMPNAME", " __.COMPNAME", nil)
+	insertEntry(transaction[GRTAGS], " __.VERSION", " __.VERSION 6", nil)
 
-	g.insertEntry(GPATH, " __.VERSION", " __.VERSION 2", nil)
-	g.insertEntry(GPATH, " __.NEXTKEY", "1", nil)
+	insertEntry(transaction[GPATH], " __.VERSION", " __.VERSION 2", nil)
+	insertEntry(transaction[GPATH], " __.NEXTKEY", "1", nil)
 
 	for _, fd := range g.fileDatas {
 		for _, s := range fd.gtagsData {
-			g.insertEntry(GTAGS, s.tagName, s.String(), strconv.Itoa(s.fileID))
+			insertEntry(transaction[GTAGS], s.tagName, s.String(), strconv.Itoa(s.fileID))
 		}
 		for tagName, compact := range fd.grtagsData {
-			g.insertEntry(GRTAGS, tagName, compact.String(), strconv.Itoa(compact.fileID))
+			insertEntry(transaction[GRTAGS], tagName, compact.String(), strconv.Itoa(compact.fileID))
 		}
 
 		filepath, _ := filepath.Rel(g.basePath, fd.absFilePath)
@@ -194,14 +193,14 @@ func (g *global) finalize() error {
 			log.Println(filepath)
 		}
 
-		g.insertEntry(GPATH, filepath, fd.fileID, nil)
-		g.insertEntry(GPATH, fd.fileID, filepath, nil)
-		g.insertEntry(GPATH, " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
+		insertEntry(transaction[GPATH], filepath, fd.fileID, nil)
+		insertEntry(transaction[GPATH], fd.fileID, filepath, nil)
+		insertEntry(transaction[GPATH], " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
 	}
 
 	for _, file := range dbfiles {
-		g.transaction[file].Commit()
-		g.db[file].Close()
+		transaction[file].Commit()
+		db[file].Close()
 	}
 
 	return nil

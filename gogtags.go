@@ -171,16 +171,31 @@ func (g *global) switchFile(node ast.Node) (err error) {
 	return nil
 }
 
-func (g *global) addFuncDecl(node *ast.FuncDecl) {
-	ident := node.Name
-	pos := g.fset.Position(node.Pos())
-	for ; g.currentLine < pos.Line; g.currentLine++ {
-		g.scanner.Scan()
+func getLineImage(filename string, line int) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to open next file ")
 	}
-	lineImage := strings.Replace(strings.TrimSpace(g.scanner.Text()), ident.Name, "@n", -1)
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	for l := 0; l < line; l++ {
+		scanner.Scan()
+	}
+
+	return scanner.Text(), nil
+}
+
+func (g *global) addFuncDecl(node *ast.FuncDecl) {
+	pos := g.fset.Position(node.Pos())
+	li, err := getLineImage(pos.Filename, pos.Line)
+	if err != nil {
+		return
+	}
+	lineImage := strings.Replace(strings.TrimSpace(li), node.Name.Name, "@n", -1)
 
 	g.latestFileData().gtagsData = append(g.latestFileData().gtagsData, standard{
-		tagName:    ident.Name,
+		tagName:    node.Name.Name,
 		fileID:     g.latestFileData().fileID,
 		lineNumber: pos.Line,
 		lineImage:  lineImage,

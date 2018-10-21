@@ -140,8 +140,9 @@ func getLineImage(filename string, line int) (string, error) {
 	return scanner.Text(), nil
 }
 
-func (g *global) addFuncDecl(path string, node *ast.FuncDecl) {
+func (g *global) addFuncDecl(node *ast.FuncDecl) {
 	pos := g.fset.Position(node.Pos())
+	path := pos.Filename
 	li, err := getLineImage(pos.Filename, pos.Line)
 	if err != nil {
 		return
@@ -156,8 +157,9 @@ func (g *global) addFuncDecl(path string, node *ast.FuncDecl) {
 	})
 }
 
-func (g *global) addIdent(path string, ident *ast.Ident) {
+func (g *global) addIdent(ident *ast.Ident) {
 	pos := g.fset.Position(ident.Pos())
+	path := pos.Filename
 	r, found := g.fileData(path).grtagsData[ident.Name]
 	if found {
 		r.lineNumbers = append(r.lineNumbers, pos.Line)
@@ -177,17 +179,11 @@ func (g *global) parse(node ast.Node) bool {
 		return true
 	}
 
-	pos := g.fset.Position(node.Pos())
-	abspath, err := filepath.Abs(pos.Filename)
-	if err != nil {
-		log.Fatal("failed to get absolute path: ", err)
-	}
-
 	switch node.(type) {
 	case *ast.FuncDecl:
-		g.addFuncDecl(abspath, node.(*ast.FuncDecl))
+		g.addFuncDecl(node.(*ast.FuncDecl))
 	case *ast.Ident:
-		g.addIdent(abspath, node.(*ast.Ident))
+		g.addIdent(node.(*ast.Ident))
 	}
 	return true
 }

@@ -25,9 +25,15 @@ type global struct {
 }
 
 func (g *global) appendFileData(path string) {
+	relpath, _ := filepath.Rel(g.basePath, path)
+	relpath = "./" + relpath
+	if verbose {
+		log.Println(relpath)
+	}
+
 	new := &fileData{
 		fileID:      len(g.fileDatas) + 1,
-		absFilePath: path,
+		absFilePath: relpath,
 		gtagsData:   make([]standard, 0),
 		grtagsData:  make(map[string]*compact),
 	}
@@ -121,14 +127,8 @@ func (g *global) finalize() error {
 			insertEntry(transaction[GRTAGS], tagName, compact.String(), strconv.Itoa(compact.fileID))
 		}
 
-		filepath, _ := filepath.Rel(g.basePath, fd.absFilePath)
-		filepath = "./" + filepath
-		if verbose {
-			log.Println(filepath)
-		}
-
-		insertEntry(transaction[GPATH], filepath, fd.fileID, nil)
-		insertEntry(transaction[GPATH], fd.fileID, filepath, nil)
+		insertEntry(transaction[GPATH], fd.absFilePath, fd.fileID, nil)
+		insertEntry(transaction[GPATH], fd.fileID, fd.absFilePath, nil)
 		insertEntry(transaction[GPATH], " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
 	}
 

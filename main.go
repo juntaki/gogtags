@@ -17,9 +17,12 @@ var verbose bool
 var debug bool
 
 func main() {
-	verbose = *flag.Bool("v", false, "Verbose mode.")
-	debug = *flag.Bool("d", false, "Debug mode.")
+	verbosep := flag.Bool("v", false, "Verbose mode.")
+	debugp := flag.Bool("d", false, "Debug mode.")
 	flag.Parse()
+
+	verbose = *verbosep
+	debug = *debugp
 	if debug {
 		verbose = true
 	}

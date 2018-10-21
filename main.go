@@ -45,7 +45,7 @@ func do(basePath string) error {
 		return err
 	}
 
-	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			// if hidden directory - skip the entire dir
 			if info.Name()[0] == '.' {

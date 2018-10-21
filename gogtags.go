@@ -15,16 +15,17 @@ import (
 )
 
 type global struct {
-	fileDatas []*fileData
+	fileDatas map[string]*fileData
 	// lineImageScanner
-	basePath    string
-	currentFile *os.File
-	currentLine int
-	scanner     *bufio.Scanner
-	fset        *token.FileSet
+	basePath string
+	fset     *token.FileSet
 }
 
-func (g *global) appendFileData(path string) {
+func (g *global) fileData(path string) *fileData {
+	if val, ok := g.fileDatas[path]; ok {
+		return val
+	}
+
 	relpath, _ := filepath.Rel(g.basePath, path)
 	relpath = "./" + relpath
 	if verbose {
@@ -38,14 +39,8 @@ func (g *global) appendFileData(path string) {
 		grtagsData:  make(map[string]*compact),
 	}
 
-	g.fileDatas = append(g.fileDatas, new)
-}
-
-func (g *global) latestFileData() *fileData {
-	if len(g.fileDatas) == 0 {
-		return nil
-	}
-	return g.fileDatas[len(g.fileDatas)-1]
+	g.fileDatas[path] = new
+	return new
 }
 
 type fileData struct {
@@ -57,12 +52,9 @@ type fileData struct {
 
 func newGlobal(fset *token.FileSet, basePath string) (*global, error) {
 	g := &global{
-		fileDatas:   []*fileData{},
-		basePath:    basePath,
-		currentFile: nil,
-		currentLine: 0,
-		scanner:     nil,
-		fset:        fset,
+		fileDatas: make(map[string]*fileData),
+		basePath:  basePath,
+		fset:      fset,
 	}
 
 	return g, nil
@@ -76,13 +68,6 @@ func insertEntry(tx *sql.Tx, key, dat, extra interface{}) {
 }
 
 func (g *global) finalize() error {
-	if g.currentFile != nil {
-		err := g.currentFile.Close()
-		if err != nil {
-			return err
-		}
-	}
-
 	dbfiles := []tagType{
 		GTAGS,
 		GRTAGS,
@@ -140,37 +125,6 @@ func (g *global) finalize() error {
 	return nil
 }
 
-func (g *global) switchFile(node ast.Node) (err error) {
-	pos := g.fset.Position(node.Pos())
-	abspath, err := filepath.Abs(pos.Filename)
-	if err != nil {
-		log.Fatal("failed to get absolute path: ", err)
-	}
-
-	if g.currentFile != nil && g.currentFile.Name() == abspath {
-		return nil
-	}
-
-	// Close and Setup Scanner
-	if g.currentFile != nil {
-		err := g.currentFile.Close()
-		if err != nil {
-			return errors.Wrapf(err, "failed to close current file, current: %s abspath: %s", g.currentFile.Name(), abspath)
-		}
-	}
-	g.currentFile, err = os.Open(abspath)
-	if err != nil {
-		return errors.Wrap(err, "failed to open next file ")
-	}
-	g.scanner = bufio.NewScanner(g.currentFile)
-	g.currentLine = 0
-
-	// Reset parsed data
-	g.appendFileData(abspath)
-
-	return nil
-}
-
 func getLineImage(filename string, line int) (string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -186,7 +140,7 @@ func getLineImage(filename string, line int) (string, error) {
 	return scanner.Text(), nil
 }
 
-func (g *global) addFuncDecl(node *ast.FuncDecl) {
+func (g *global) addFuncDecl(path string, node *ast.FuncDecl) {
 	pos := g.fset.Position(node.Pos())
 	li, err := getLineImage(pos.Filename, pos.Line)
 	if err != nil {
@@ -194,22 +148,22 @@ func (g *global) addFuncDecl(node *ast.FuncDecl) {
 	}
 	lineImage := strings.Replace(strings.TrimSpace(li), node.Name.Name, "@n", -1)
 
-	g.latestFileData().gtagsData = append(g.latestFileData().gtagsData, standard{
+	g.fileData(path).gtagsData = append(g.fileData(path).gtagsData, standard{
 		tagName:    node.Name.Name,
-		fileID:     g.latestFileData().fileID,
+		fileID:     g.fileData(path).fileID,
 		lineNumber: pos.Line,
 		lineImage:  lineImage,
 	})
 }
 
-func (g *global) addIdent(ident *ast.Ident) {
+func (g *global) addIdent(path string, ident *ast.Ident) {
 	pos := g.fset.Position(ident.Pos())
-	r, found := g.latestFileData().grtagsData[ident.Name]
+	r, found := g.fileData(path).grtagsData[ident.Name]
 	if found {
 		r.lineNumbers = append(r.lineNumbers, pos.Line)
 	} else {
-		g.latestFileData().grtagsData[ident.Name] = &compact{
-			fileID:      g.latestFileData().fileID,
+		g.fileData(path).grtagsData[ident.Name] = &compact{
+			fileID:      g.fileData(path).fileID,
 			lineNumbers: []int{pos.Line},
 		}
 	}
@@ -223,17 +177,17 @@ func (g *global) parse(node ast.Node) bool {
 		return true
 	}
 
-	err := g.switchFile(node)
+	pos := g.fset.Position(node.Pos())
+	abspath, err := filepath.Abs(pos.Filename)
 	if err != nil {
-		log.Print("failed to switch file: ", err)
-		return false
+		log.Fatal("failed to get absolute path: ", err)
 	}
 
 	switch node.(type) {
 	case *ast.FuncDecl:
-		g.addFuncDecl(node.(*ast.FuncDecl))
+		g.addFuncDecl(abspath, node.(*ast.FuncDecl))
 	case *ast.Ident:
-		g.addIdent(node.(*ast.Ident))
+		g.addIdent(abspath, node.(*ast.Ident))
 	}
 	return true
 }

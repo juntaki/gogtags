@@ -5,18 +5,18 @@ import "fmt"
 type tagType int
 
 const (
-	GTAGS tagType = iota
-	GRTAGS
-	GPATH
+	gtags tagType = iota
+	grtags
+	gpath
 )
 
 func (t tagType) String() string {
 	switch t {
-	case GTAGS:
+	case gtags:
 		return "GTAGS"
-	case GRTAGS:
+	case grtags:
 		return "GRTAGS"
-	case GPATH:
+	case gpath:
 		return "GPATH"
 	}
 	panic("invalid tagType")

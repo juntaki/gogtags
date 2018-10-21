@@ -25,7 +25,7 @@ func TestCompact(t *testing.T) {
 }
 
 func BenchmarkInsert(b *testing.B) {
-	file := GTAGS
+	file := gtags
 	os.Remove("./" + file.String())
 	g, _ := sql.Open("sqlite3", file.String())
 	g.Exec(`create table db (key text, dat text, extra text)`)
@@ -35,7 +35,7 @@ func BenchmarkInsert(b *testing.B) {
 }
 
 func BenchmarkInsertCommit(b *testing.B) {
-	file := GTAGS
+	file := gtags
 	os.Remove("./" + file.String())
 	g, _ := sql.Open("sqlite3", file.String())
 	g.Exec(`create table db (key text, dat text, extra text)`)

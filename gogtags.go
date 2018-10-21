@@ -69,9 +69,9 @@ func insertEntry(tx *sql.Tx, key, dat, extra interface{}) {
 
 func (g *global) finalize() error {
 	dbfiles := []tagType{
-		GTAGS,
-		GRTAGS,
-		GPATH,
+		gtags,
+		grtags,
+		gpath,
 	}
 	db := make(map[tagType]*sql.DB)
 	transaction := make(map[tagType]*sql.Tx)
@@ -92,29 +92,29 @@ func (g *global) finalize() error {
 		}
 	}
 
-	insertEntry(transaction[GTAGS], " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
-	insertEntry(transaction[GTAGS], " __.COMPNAME", " __.COMPNAME", nil)
-	insertEntry(transaction[GTAGS], " __.VERSION", " __.VERSION 6", nil)
+	insertEntry(transaction[gtags], " __.COMPRESS", " __.COMPRESS ddefine ttypedef", nil)
+	insertEntry(transaction[gtags], " __.COMPNAME", " __.COMPNAME", nil)
+	insertEntry(transaction[gtags], " __.VERSION", " __.VERSION 6", nil)
 
-	insertEntry(transaction[GRTAGS], " __.COMPACT", " __.COMPACT", nil)
-	insertEntry(transaction[GRTAGS], " __.COMPLINE", " __.COMPLINE", nil)
-	insertEntry(transaction[GRTAGS], " __.COMPNAME", " __.COMPNAME", nil)
-	insertEntry(transaction[GRTAGS], " __.VERSION", " __.VERSION 6", nil)
+	insertEntry(transaction[grtags], " __.COMPACT", " __.COMPACT", nil)
+	insertEntry(transaction[grtags], " __.COMPLINE", " __.COMPLINE", nil)
+	insertEntry(transaction[grtags], " __.COMPNAME", " __.COMPNAME", nil)
+	insertEntry(transaction[grtags], " __.VERSION", " __.VERSION 6", nil)
 
-	insertEntry(transaction[GPATH], " __.VERSION", " __.VERSION 2", nil)
-	insertEntry(transaction[GPATH], " __.NEXTKEY", "1", nil)
+	insertEntry(transaction[gpath], " __.VERSION", " __.VERSION 2", nil)
+	insertEntry(transaction[gpath], " __.NEXTKEY", "1", nil)
 
 	for _, fd := range g.fileDatas {
 		for _, s := range fd.gtagsData {
-			insertEntry(transaction[GTAGS], s.tagName, s.String(), strconv.Itoa(s.fileID))
+			insertEntry(transaction[gtags], s.tagName, s.String(), strconv.Itoa(s.fileID))
 		}
 		for tagName, compact := range fd.grtagsData {
-			insertEntry(transaction[GRTAGS], tagName, compact.String(), strconv.Itoa(compact.fileID))
+			insertEntry(transaction[grtags], tagName, compact.String(), strconv.Itoa(compact.fileID))
 		}
 
-		insertEntry(transaction[GPATH], fd.absFilePath, fd.fileID, nil)
-		insertEntry(transaction[GPATH], fd.fileID, fd.absFilePath, nil)
-		insertEntry(transaction[GPATH], " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
+		insertEntry(transaction[gpath], fd.absFilePath, fd.fileID, nil)
+		insertEntry(transaction[gpath], fd.fileID, fd.absFilePath, nil)
+		insertEntry(transaction[gpath], " __.NEXTKEY", strconv.Itoa(fd.fileID+1), nil)
 	}
 
 	for _, file := range dbfiles {

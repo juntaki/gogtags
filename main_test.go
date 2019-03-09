@@ -26,22 +26,22 @@ func TestCompact(t *testing.T) {
 
 func BenchmarkInsert(b *testing.B) {
 	file := gtags
-	os.Remove("./" + file.String())
+	_ = os.Remove("./" + file.String())
 	g, _ := sql.Open("sqlite3", file.String())
-	g.Exec(`create table db (key text, dat text, extra text)`)
+	_, _ = g.Exec(`create table db (key text, dat text, extra text)`)
 	for i := 0; i < b.N; i++ {
-		g.Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, "key", "dat", "extra")
+		_, _ = g.Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, "key", "dat", "extra")
 	}
 }
 
 func BenchmarkInsertCommit(b *testing.B) {
 	file := gtags
-	os.Remove("./" + file.String())
+	_ = os.Remove("./" + file.String())
 	g, _ := sql.Open("sqlite3", file.String())
-	g.Exec(`create table db (key text, dat text, extra text)`)
+	_, _ = g.Exec(`create table db (key text, dat text, extra text)`)
 	t, _ := g.Begin()
 	for i := 0; i < b.N; i++ {
-		t.Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, "key", "dat", "extra")
+		_, _ = t.Exec(`insert into db (key, dat, extra) values (?, ?, ?)`, "key", "dat", "extra")
 	}
-	t.Commit()
+	_ = t.Commit()
 }

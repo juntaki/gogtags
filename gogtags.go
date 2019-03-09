@@ -118,7 +118,10 @@ func (g *global) finalize() error {
 	}
 
 	for _, file := range dbfiles {
-		transaction[file].Commit()
+		err = transaction[file].Commit()
+		if err != nil {
+			return err
+		}
 		db[file].Close()
 	}
 

@@ -182,11 +182,11 @@ func (g *global) parse(node ast.Node) bool {
 		return true
 	}
 
-	switch node.(type) {
+	switch node := node.(type) {
 	case *ast.FuncDecl:
-		g.addFuncDecl(node.(*ast.FuncDecl))
+		g.addFuncDecl(node)
 	case *ast.Ident:
-		g.addIdent(node.(*ast.Ident))
+		g.addIdent(node)
 	}
 	return true
 }

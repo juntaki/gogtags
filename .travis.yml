@@ -13,7 +13,6 @@ script:
     - $HOME/gopath/bin/goveralls -repotoken $COVERALLS_TOKEN
 
 go:
-    - 1.10.x
     - 1.11.x
     - 1.12.x
 

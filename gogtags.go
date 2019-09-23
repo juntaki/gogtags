@@ -174,6 +174,24 @@ func (g *global) addIdent(ident *ast.Ident) {
 	}
 }
 
+func (g *global) addTypeSpec(typeSpec *ast.TypeSpec) {
+	pos := g.fset.Position(typeSpec.Pos())
+	path := pos.Filename
+
+	li, err := getLineImage(pos.Filename, pos.Line)
+	if err != nil {
+		return
+	}
+	lineImage := strings.Replace(strings.TrimSpace(li), typeSpec.Name.Name, "@n", -1)
+	g.fileData(path).gtagsData = append(g.fileData(path).gtagsData, standard{
+		tagName:    typeSpec.Name.Name,
+		fileID:     g.fileData(path).fileID,
+		lineNumber: pos.Line,
+		lineImage:  lineImage,
+	})
+}
+
+
 func (g *global) parse(node ast.Node) bool {
 	if node == nil {
 		return false
@@ -187,6 +205,8 @@ func (g *global) parse(node ast.Node) bool {
 		g.addFuncDecl(node)
 	case *ast.Ident:
 		g.addIdent(node)
+	case *ast.TypeSpec:
+		g.addTypeSpec(node)
 	}
 	return true
 }

@@ -1,6 +1,6 @@
 # gogtags
 
-![workflow](https://github.com/juntaki/gogtags/actions/workflows/go/badge.svg)
+[![test](https://github.com/juntaki/gogtags/actions/workflows/go.yml/badge.svg)](https://github.com/juntaki/gogtags/actions/workflows/go.yml)
 
 GNU GLOBAL compatible source code tagging for golang
 

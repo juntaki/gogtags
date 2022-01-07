@@ -15,21 +15,10 @@ go get github.com/juntaki/gogtags
 GNU GLOBAL **with sqlite3** is required for reference.
 https://www.gnu.org/software/global/
 
-### Debian/Ubuntu
-~~~
-sudo apt install libncurses5-dev build-essential  # for ubuntu, build dependency
-wget http://tamacom.com/global/global-6.5.7.tar.gz
-tar xvf global-6.5.7.tar.gz
-cd global-6.5.7
-./configure --with-sqlite3
-make
-sudo make install
-~~~
-
 ### Mac
 
 ~~~
-brew install global --with-sqlite3
+brew install global
 ~~~
 
 ## How to use

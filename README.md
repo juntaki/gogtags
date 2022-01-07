@@ -1,6 +1,6 @@
 # gogtags
 
-[![Build Status](https://travis-ci.org/juntaki/gogtags.svg?branch=master)](https://travis-ci.org/juntaki/gogtags)
+![workflow](https://github.com/juntaki/gogtags/actions/workflows/go/badge.svg)
 
 GNU GLOBAL compatible source code tagging for golang
 
@@ -43,6 +43,6 @@ gogtags -v
 
 ## Use with emacs helm-gtags or other editor plugin
 
-Just use it as ususal, Generated tag is GNU GLOBAL compatible.
+Just use it as usual, Generated tag is GNU GLOBAL compatible.
 
 ![screenshot1](https://github.com/juntaki/gogtags/blob/master/gogtags_screenshot2.gif?raw=true)

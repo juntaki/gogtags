@@ -7,7 +7,7 @@ GNU GLOBAL compatible source code tagging for golang
 ## Installation
 
 ~~~
-go get github.com/juntaki/gogtags
+go install github.com/juntaki/gogtags@latest
 ~~~
 
 ## GNU GLOBAL Installation for gogtags
